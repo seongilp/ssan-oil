@@ -10,6 +10,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { decodeCp949, parseCsv, type CsvRow } from '../src/lib/store/csv';
 import { createPool, ensureSchema } from './lib/pool';
+import { kstToday } from '../src/lib/date';
 
 /** CSV 컬럼명 → 내부 연료 키. 값이 0이면 취급하지 않는 연료다. */
 const FUEL_COLUMNS: Record<string, string> = {
@@ -36,10 +37,6 @@ function findCsv(directory: string, keyword: string): string | null {
 
 function readCsv(path: string): CsvRow[] {
   return parseCsv(decodeCp949(readFileSync(path)));
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 const BATCH = 1000;
@@ -119,7 +116,7 @@ async function main(): Promise<void> {
   const pool = createPool();
   await ensureSchema(pool);
 
-  const date = today();
+  const date = kstToday();
   const basicRows = readCsv(basicPath);
   const priceRows = readCsv(pricePath);
 

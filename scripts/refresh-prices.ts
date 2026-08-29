@@ -16,6 +16,7 @@ import {
   type UsageStore,
 } from './lib/opinet';
 import { katecToWgs84, wgs84ToKatec } from '../src/lib/geo/katec';
+import { kstToday } from '../src/lib/date';
 import { SWEEP_RADIUS_M } from '../src/lib/store/grid';
 import { PROD_CODE } from '../src/lib/fuel/opinet-types';
 import type { FuelType } from '../src/lib/fuel/types';
@@ -80,7 +81,9 @@ async function main(): Promise<void> {
 
   const pool = createPool();
   await ensureSchema(pool);
-  const date = new Date().toISOString().slice(0, 10);
+  // 오피넷 한도와 가격 기준일이 모두 한국시각으로 끊긴다. UTC를 쓰면
+  // 새벽에 도는 크론이 전날 예산을 물려받는다.
+  const date = kstToday();
 
   // 키별 오늘 사용량을 DB에 남긴다. 재실행해도 예산이 되살아나지 않는다.
   const usage: UsageStore = {

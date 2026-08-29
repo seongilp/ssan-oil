@@ -8,6 +8,7 @@
  * DISCORD_WEBHOOK 이 있으면 --notify 로 디스코드에 보낸다.
  */
 import { createPool, loadEnv } from './lib/pool';
+import { KST_TODAY_SQL } from '../src/lib/date';
 
 /** 오늘 새로 들어와야 할 최소 가격 건수. 이보다 적으면 뭔가 잘못된 것이다. */
 const MIN_PRICES_TODAY = 1000;
@@ -28,7 +29,7 @@ async function main(): Promise<void> {
   try {
     const { rows: priceRows } = await pool.query<{ fuel: string; n: number }>(
       `SELECT fuel, COUNT(*)::int AS n FROM prices
-       WHERE date = CURRENT_DATE GROUP BY fuel ORDER BY fuel`,
+       WHERE date = ${KST_TODAY_SQL} GROUP BY fuel ORDER BY fuel`,
     );
     const totalToday = priceRows.reduce((sum, row) => sum + row.n, 0);
     checks.push({
@@ -54,7 +55,8 @@ async function main(): Promise<void> {
 
     const { rows: ingestRows } = await pool.query<{ source: string; n: number }>(
       `SELECT source, COUNT(*)::int AS n FROM ingests
-       WHERE started_at >= CURRENT_DATE GROUP BY source ORDER BY source`,
+       WHERE (started_at AT TIME ZONE 'Asia/Seoul')::date = ${KST_TODAY_SQL}
+       GROUP BY source ORDER BY source`,
     );
     checks.push({
       label: '갱신 기록',
@@ -66,7 +68,8 @@ async function main(): Promise<void> {
     });
 
     const { rows: usageRows } = await pool.query<{ key_name: string; calls: number }>(
-      'SELECT key_name, calls FROM api_usage WHERE date = CURRENT_DATE ORDER BY key_name',
+      `SELECT key_name, calls FROM api_usage
+       WHERE date = ${KST_TODAY_SQL} ORDER BY key_name`,
     );
     checks.push({
       label: 'API 호출',

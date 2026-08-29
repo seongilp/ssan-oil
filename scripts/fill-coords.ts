@@ -10,6 +10,7 @@
 import { createPool, ensureSchema, loadEnv } from './lib/pool';
 import { createOpinetClient, type UsageStore } from './lib/opinet';
 import { katecToWgs84 } from '../src/lib/geo/katec';
+import { kstToday } from '../src/lib/date';
 import { FUEL_BY_PROD_CODE } from '../src/lib/fuel/opinet-types';
 import type { FuelType } from '../src/lib/fuel/types';
 
@@ -44,7 +45,7 @@ async function main(): Promise<void> {
 
   const pool = createPool();
   await ensureSchema(pool);
-  const date = new Date().toISOString().slice(0, 10);
+  const date = kstToday();
 
   const usage: UsageStore = {
     async load(keyName) {
