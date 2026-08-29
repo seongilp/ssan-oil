@@ -1,0 +1,16 @@
+[Unit]
+Description=오피넷 주유소 가격 갱신
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/oil-price
+# 키는 파일 권한으로 보호한다: chmod 600, root 또는 서비스 사용자 소유
+EnvironmentFile=/etc/oil-price.env
+ExecStart=/opt/oil-price/ops/refresh.sh
+# 새벽에 한 번 도는 배치라 넉넉히 잡되, 매달리지는 않게 한다.
+TimeoutStartSec=3600
+StandardOutput=journal
+StandardError=journal

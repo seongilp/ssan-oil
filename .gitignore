@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.gstack/
+
+# 로컬 데이터 저장소 (새벽 크론이 채운다. 커밋하지 않는다)
+/data/*.db
+/data/*.db-*
+/data/*.log

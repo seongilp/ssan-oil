@@ -1,0 +1,14 @@
+[Unit]
+Description=갱신 로그 디스코드 전송
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/oil-price
+EnvironmentFile=/etc/oil-price.env
+ExecStart=/opt/oil-price/ops/send-log.sh
+TimeoutStartSec=180
+StandardOutput=journal
+StandardError=journal

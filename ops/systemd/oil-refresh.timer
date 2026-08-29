@@ -1,0 +1,13 @@
+[Unit]
+Description=매일 새벽 오피넷 가격 갱신
+
+[Timer]
+# 오피넷 가격이 갱신된 뒤 시간대. 서버 시간대가 UTC면 OnCalendar를 조정하거나
+# systemd 유닛에 Environment=TZ=Asia/Seoul 을 준다.
+OnCalendar=*-*-* 04:10:00
+# 서버가 꺼져 있어 시간을 놓쳤으면 부팅 후 한 번 실행한다.
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

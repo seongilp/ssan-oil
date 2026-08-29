@@ -1,0 +1,11 @@
+[Unit]
+Description=매일 아침 갱신 로그 전송
+
+[Timer]
+# 갱신(04:10)이 끝난 뒤 아침 시간대. 서버 TZ가 Asia/Seoul 기준이다.
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

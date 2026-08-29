@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 경로 위의 싼 주유소
 
-## Getting Started
+출발지에서 목적지까지 가는 **경로 위에서**, 우회에 드는 기름값까지 계산해
+실제로 가장 싸게 넣을 수 있는 주유소를 찾는다.
 
-First, run the development server:
+리터당 가격이 싸도 멀리 돌아가면 손해다. 그래서 순위 기준은 리터당 가격이 아니라
+`주유비 + 우회 주행에 태우는 기름값`의 합이다.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 구조
+
+```
+새벽 크론 ──> SQLite(data/fuel.db) ──> 웹 요청
+(오피넷 API)      좌표 + 일별 가격      (외부 API 호출 0)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+가격은 하루 단위로만 바뀌므로 요청 시점에 API를 부를 이유가 없다.
+새벽에 한 번 채워 두고 낮에는 저장소만 읽는다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **지도/목록**: 저장소만 읽는다. 외부 호출 없음.
+- **경로 계산**: OSRM 공개 서버만 호출한다(주유소 데이터와 무관).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 데이터 출처
 
-## Learn More
+| 데이터 | 출처 | 비고 |
+|---|---|---|
+| 주유소 마스터·가격 | 오피넷 CSV / `aroundAll` API | `고유번호`가 API의 `UNI_ID`와 동일 |
+| 주유소 좌표 | `aroundAll` 응답의 `GIS_X/Y_COOR` | KATEC(TM128) → WGS84 변환 |
+| 지도 타일 | OpenFreeMap (positron/dark) | 키 불필요 |
+| 경로 | OSRM 공개 데모 서버 | 비상업적 이용만 |
+| 주소 검색 | Nominatim | 초당 1건 제한 |
 
-To learn more about Next.js, take a look at the following resources:
+### 호출 예산
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+오피넷 무료 API는 **하루 1,500회**다. `aroundAll`은 반경 5km 안의 주유소를
+좌표·가격과 함께 한 번에 돌려주므로(실측 호출당 약 27곳), 전국을 덮는 데
+이론상 400회 안팎이면 된다. 자세한 운영은 [`ops/README.md`](ops/README.md).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 명령
 
-## Deploy on Vercel
+```bash
+pnpm dev                      # 개발 서버
+pnpm build && pnpm start      # 프로덕션
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+pnpm import:csv [디렉터리]     # 오피넷 CSV 적재 (기본 ~/Downloads)
+pnpm build:grid --regions     # 전국 격자 생성 (최초 1회, 약 5분)
+pnpm build:grid               # 알려진 좌표를 덮는 최소 스윕 지점 재계산
+pnpm refresh --budget 1400 --fuel gasoline   # 스윕(좌표+가격)
+pnpm calibrate:katec [표본수]  # KATEC 변환 오차 실측 보정
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 알려진 제약
+
+- **고속도로 휴게소의 상·하행 구분이 없다.** 오피넷 데이터에 방향 정보가 없어
+  반대 방향 휴게소가 추천될 수 있다. 해당 주유소는 약 205곳(`알뜰(ex)`)이다.
+- **OSRM 데모 서버는 상업적 이용이 불가**하다. 개인용으로만 쓴다.
+- 주소 지오코딩(Nominatim)은 한국 주소에서 오차가 커(중앙값 1.5km) 쓰지 않는다.
+  좌표는 오피넷이 주는 값만 신뢰한다.
+
+## 환경변수 (`.env.local`)
+
+```
+OPINET=<오피넷 인증키>        # 파라미터 이름은 code가 아니라 certkey다
+DORO=<한국도로공사 API 키>     # 고속도로 휴게소 방향 정보용(선택)
+OSM_CONTACT=<연락 가능한 이메일>  # Nominatim 이용정책상 필요
+```
