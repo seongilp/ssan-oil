@@ -1,4 +1,5 @@
 import { getSql } from './db';
+import { KST_TODAY_SQL } from '../date';
 import type { Coord, FuelType, Station } from '../fuel/types';
 
 /** CSV의 연료 컬럼은 5종이지만 경로 계산은 3종만 쓴다. */
@@ -45,6 +46,24 @@ type StationRow = {
   price: number;
 };
 
+/**
+ * 주유소마다 '가장 최근 가격'을 고르는 공통 서브쿼리.
+ *
+ * 특정 날짜 하나에만 조인하면, 그날 갱신이 도중에 멈췄을 때 아직 안 채워진
+ * 주유소가 지도에서 통째로 사라진다. 실제로 갱신이 실패한 날 지도가 텅 비었다.
+ * 최근 며칠 안에서 각자 최신값을 쓰면 부분 갱신 중에도 지도가 온전하다.
+ */
+const LOOKBACK_DAYS = 7;
+
+const latestPriceCte = (fuel: string) => `
+  latest AS (
+    SELECT DISTINCT ON (uni_id) uni_id, price, date
+    FROM prices
+    WHERE fuel = '${fuel}'
+      AND date > ${KST_TODAY_SQL} - ${LOOKBACK_DAYS}
+    ORDER BY uni_id, date DESC
+  )`;
+
 /** 저장소에 들어 있는 가장 최근 가격 날짜(YYYY-MM-DD). 없으면 null. */
 export async function latestPriceDate(): Promise<string | null> {
   const sql = getSql();
@@ -64,11 +83,12 @@ export async function priceStatsInBounds(
 
   const sql = getSql();
   const rows = (await sql`
+    WITH ${sql.unsafe(latestPriceCte(fuel))}
     SELECT COUNT(*)::int AS count,
            percentile_disc(0.25) WITHIN GROUP (ORDER BY p.price)::int AS p25,
            percentile_disc(0.75) WITHIN GROUP (ORDER BY p.price)::int AS p75
     FROM stations s
-    JOIN prices p ON p.uni_id = s.uni_id AND p.date = ${date} AND p.fuel = ${fuel}
+    JOIN latest p ON p.uni_id = s.uni_id
     WHERE s.geocode_src = 'opinet'
       AND s.lat BETWEEN ${bounds.south} AND ${bounds.north}
       AND s.lon BETWEEN ${bounds.west} AND ${bounds.east}
@@ -104,6 +124,7 @@ export async function stationsInBounds(
 
   const sql = getSql();
   const rows = (await sql`
+    WITH ${sql.unsafe(latestPriceCte(fuel))}
     SELECT * FROM (
       SELECT DISTINCT ON (bucket)
              uni_id, source, name, brand, address, tel, is_self, lat, lon, price
@@ -113,7 +134,7 @@ export async function stationsInBounds(
                floor((s.lat - ${bounds.south}) / ${latStep})::int * 100000
                  + floor((s.lon - ${bounds.west}) / ${lonStep})::int AS bucket
         FROM stations s
-        JOIN prices p ON p.uni_id = s.uni_id AND p.date = ${date} AND p.fuel = ${fuel}
+        JOIN latest p ON p.uni_id = s.uni_id
         WHERE s.geocode_src = 'opinet'
           AND s.lat BETWEEN ${bounds.south} AND ${bounds.north}
           AND s.lon BETWEEN ${bounds.west} AND ${bounds.east}
@@ -142,10 +163,11 @@ export async function allPricedStations(fuel: FuelType): Promise<Station[]> {
 
   const sql = getSql();
   const rows = (await sql`
+    WITH ${sql.unsafe(latestPriceCte(fuel))}
     SELECT s.uni_id, s.source, s.name, s.brand, s.address, s.tel, s.is_self,
            s.lat, s.lon, p.price
     FROM stations s
-    JOIN prices p ON p.uni_id = s.uni_id AND p.date = ${date} AND p.fuel = ${fuel}
+    JOIN latest p ON p.uni_id = s.uni_id
     WHERE s.geocode_src = 'opinet'
   `) as StationRow[];
 
